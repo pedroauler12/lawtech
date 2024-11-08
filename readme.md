@@ -30,12 +30,48 @@
 
   ```bash
   pip install python-docx
+
+
+## 3.2. Anonimização dos Dados com spaCy
+
+Para proteger informações sensíveis presentes nas petições, utilizamos o spaCy para anonimizar dados pessoais e confidenciais. A anonimização foi realizada através do reconhecimento de entidades nomeadas (NER), substituindo-as por placeholders correspondentes.
+
+### Função de Anonimização
+
+```python
+def anonimizar_texto(texto):
+    doc = nlp(texto)
+    new_text = texto
+    for ent in reversed(doc.ents):
+        if ent.label_ in ['PER', 'ORG', 'LOC', 'DATE', 'MONEY', 'MISC']:
+            start_char = ent.start_char
+            end_char = ent.end_char
+            new_text = new_text[:start_char] + f'[{ent.label_}]' + new_text[end_char:]
+    return new_text
+```
+
+### Resumo do Processo
+
+- **Objetivo**: Remover informações sensíveis das petições para proteger a privacidade e cumprir com regulamentos legais.
+- **Metodologia**:
+  - Utilizamos o spaCy para identificar entidades nomeadas no texto.
+  - Substituímos as entidades identificadas por placeholders genéricos.
+  
+- **Labels Utilizadas**:
+  - **PER**: Pessoa (nomes de indivíduos)
+  - **ORG**: Organização (empresas, instituições)
+  - **LOC**: Localização (cidades, estados, países)
+  - **DATE**: Data (datas específicas)
+  - **MONEY**: Dinheiro (valores monetários)
+  - **MISC**: Miscelânea (outras entidades relevantes)
+
+
 - **Tokenização e Normalização:**
   - Preparar os textos para serem processados pelo modelo.
 - **Preparação dos Dados para Geração:**
   - Criar um formato que permita ao modelo entender a estrutura das petições e os elementos essenciais que devem ser incluídos.
 
-### Passo 4: Divisão dos Dados (
+### Passo 4: Divisão dos Dados 
 - **Conjunto de Treinamento:**
   - Para correção: pares de petições antes e depois da correção.
   - Para geração: petições originais do Advogado B com possíveis metadados.
