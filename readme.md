@@ -17,8 +17,19 @@
   - **Anotações Adicionais:** Se possível, incluir metadados como tipo de caso, área do direito, partes envolvidas, para auxiliar na geração contextualizada.
 
 ### Passo 3: Pré-processamento dos Dados (Ampliado)
-- **Limpeza do Texto:**
-  - Remover informações confidenciais e dados pessoais.
+#### 3.1. Extração de Texto dos Arquivos `.docx`
+- **Por que usamos `python-docx`**:
+  - **Preservação da Estrutura**: Os arquivos das petições estão em formato `.docx`, que mantém a formatação e a estrutura original dos documentos jurídicos.
+  - **Automatização**: A biblioteca `python-docx` permite extrair o texto de múltiplos documentos de forma programática, facilitando o processamento em lote.
+  - **Facilidade de Uso**: Com `python-docx`, podemos acessar e manipular o conteúdo dos arquivos `.docx` diretamente no Python, sem a necessidade de conversão para outros formatos.
+
+- **Ferramenta Utilizada**:
+  - **`python-docx`**: Biblioteca Python para ler, escrever e manipular documentos do Word (`.docx`).
+
+- **Instalação da Biblioteca**:
+
+  ```bash
+  pip install python-docx
 - **Tokenização e Normalização:**
   - Preparar os textos para serem processados pelo modelo.
 - **Preparação dos Dados para Geração:**
