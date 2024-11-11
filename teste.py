@@ -38,14 +38,7 @@ ruler = nlp.add_pipe("entity_ruler", before='ner')
 
 # Definir padrões personalizados para PER, ORG e as novas labels
 patterns = [
-    # 1. Organizações em Caixa Alta
-    {
-        "label": "ORG",
-        "pattern": [
-            {"IS_UPPER": True, "OP": "+"}  # Uma ou mais palavras em caixa alta
-        ]
-    },
-    # 2. Pessoas com Prefixos "Dr." ou "Dra."
+    # 1. Pessoas com Prefixos "Dr." ou "Dra."
     {
         "label": "PER",
         "pattern": [
@@ -54,49 +47,70 @@ patterns = [
             {"IS_TITLE": True, "OP": "+"}        # Nome próprio (uma ou mais palavras com inicial maiúscula)
         ]
     },
-    # 3. OAB
+    # 2. Pessoas completamente em caixa alta (sem prefixo)
+    {
+        "label": "PER",
+        "pattern": [
+            {"IS_UPPER": True, "OP": "+"}        # Uma ou mais palavras em caixa alta
+        ]
+    },
+    # 3. Organizações em Caixa Alta
+    {
+        "label": "ORG",
+        "pattern": [
+            {"IS_UPPER": True, "OP": "+"},       # Uma ou mais palavras em caixa alta
+            {"TEXT": {"NOT_IN": ["DR.", "DRA."]}} # Excluir padrões que já são classificados como PER
+        ]
+    },
+    # 4. OAB
     {
         "label": "OAB",
         "pattern": [
-            {"LOWER": "oab"},                    # "OAB" ou "oab"
+            {"LOWER": "oab"},                     # "OAB" ou "oab"
             {"ORTH": "/"},                        # Barra "/"
             {"IS_UPPER": True},                   # Sigla do estado em caixa alta (ex: "SP")
             {"IS_DIGIT": True, "OP": "+"}         # Número de registro (ex: "84.009")
         ]
     },
-    # 4. EMAIL
+    # 5. EMAIL
     {
         "label": "EMAIL",
         "pattern": [
             {"TEXT": {"REGEX": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"}}
         ]
     },
-    # 5. TELEFONE
+    # 6. TELEFONE
     {
         "label": "TELEFONE",
         "pattern": [
             {"TEXT": {"REGEX": r"\(?\d{2}\)?\s?\d{4,5}-?\d{4}"}}
         ]
     },
-    # 6. DATA
+    # 7. DATA (Formato Numérico e Mês por Extenso)
     {
         "label": "DATA",
         "pattern": [
-            {"TEXT": {"REGEX": r"\d{1,2} de [a-zç]+ de \d{4}"}}
+            {"TEXT": {"REGEX": r"\b\d{1,2}/\d{1,2}/\d{4}\b"}}  # Formato 16/08/2024
         ]
     },
-    # 7. CNPJ
+    {
+        "label": "DATA",
+        "pattern": [
+            {"TEXT": {"REGEX": r"\b\d{1,2} de [a-zç]+ de \d{4}\b"}}  # Formato 02 de setembro de 2024
+        ]
+    },
+    # 8. CNPJ
     {
         "label": "CNPJ",
         "pattern": [
-            {"TEXT": {"REGEX": r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"}}
+            {"TEXT": {"REGEX": r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b"}}
         ]
     },
-    # 8. CPF
+    # 9. CPF
     {
         "label": "CPF",
         "pattern": [
-            {"TEXT": {"REGEX": r"\d{3}\.\d{3}\.\d{3}-\d{2}"}}
+            {"TEXT": {"REGEX": r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"}}
         ]
     }
 ]
