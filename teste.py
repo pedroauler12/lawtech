@@ -33,61 +33,69 @@ texto_pre = extract_text(arquivos_pre[0])
 # Carregar o modelo de português do spaCy
 nlp = spacy.load('pt_core_news_sm')
 
-# Inicializar o EntityRuler
-ruler = nlp.add_pipe("entity_ruler", before='ner')
+# Inicializar o EntityRuler com overwrite_ents=True para priorizar os padrões personalizados
+ruler = nlp.add_pipe("entity_ruler", before='ner', config={"overwrite_ents": True})
 
 # Definir padrões personalizados para PER, ORG e as novas labels
 patterns = [
-    # 1. Pessoas com Prefixos "Dr." ou "Dra."
+    # 1. Pessoas com Prefixos "Dr.", "Dra.", "Sr.", "Sra." (case-insensitive) - Nome próprio (title case)
     {
         "label": "PER",
         "pattern": [
-            {"LOWER": {"IN": ["dr.", "dra."]}},  # Prefixo "Dr." ou "Dra." (case-insensitive)
-            {"IS_TITLE": True},                  # Primeira letra maiúscula
+            {"LOWER": {"IN": ["dr", "dr.", "dra", "dra.", "sr", "sr.", "sra", "sra."]}},  # Prefixos
+            {"IS_TITLE": True},        # Nome próprio (nome)
             {"IS_TITLE": True, "OP": "+"}        # Nome próprio (uma ou mais palavras com inicial maiúscula)
         ]
     },
-    # 2. Pessoas completamente em caixa alta (sem prefixo)
+    # 2. Pessoas com Prefixos "Dr.", "Dra.", "Sr.", "Sra." (case-insensitive) - Nome próprio (all caps)
     {
         "label": "PER",
         "pattern": [
-            {"IS_UPPER": True, "OP": "+"}        # Uma ou mais palavras em caixa alta
+            {"LOWER": {"IN": ["dr", "dr.", "dra", "dra.", "sr", "sr.", "sra", "sra."]}},  # Prefixos
+            {"IS_UPPER": True},        # Nome próprio (nome)
+            {"IS_UPPER": True, "OP": "+"}        # Nome próprio (uma ou mais palavras em caixa alta)
         ]
     },
-    # 3. Organizações em Caixa Alta
+    # 3. Pessoas completamente em caixa alta (sem prefixo)
+    {
+        "label": "PER",
+        "pattern": [
+            {"IS_UPPER": True, "OP": "+"},        # Uma ou mais palavras em caixa alta
+        ]
+    },
+    # 4. Organizações em Caixa Alta
     {
         "label": "ORG",
         "pattern": [
             {"IS_UPPER": True, "OP": "+"},       # Uma ou mais palavras em caixa alta
-            {"TEXT": {"NOT_IN": ["DR.", "DRA."]}} # Excluir padrões que já são classificados como PER
+            {"TEXT": {"NOT_IN": ["DR", "DR.", "DRA", "DRA.", "SR", "SR.", "SRA", "SRA."]}}  # Excluir padrões de pessoas
         ]
     },
-    # 4. OAB
+    # 5. OAB
     {
         "label": "OAB",
         "pattern": [
-            {"LOWER": "oab"},                     # "OAB" ou "oab"
-            {"ORTH": "/"},                        # Barra "/"
-            {"IS_UPPER": True},                   # Sigla do estado em caixa alta (ex: "SP")
-            {"IS_DIGIT": True, "OP": "+"}         # Número de registro (ex: "84.009")
+            {"TEXT": {"REGEX": r"OAB[-/]?[A-Z]{2}"}},  # "OAB/SP", "OAB-SP", etc.
+            {"LOWER": "nº"},                         # "nº"
+            {"TEXT": {"REGEX": r"\d{3}\.\d{3}"}},     # Número de registro (ex: "84.009")
         ]
     },
-    # 5. EMAIL
+    # 6. EMAIL
     {
         "label": "EMAIL",
         "pattern": [
             {"TEXT": {"REGEX": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"}}
         ]
     },
-    # 6. TELEFONE
+    # 7. TELEFONE
     {
         "label": "TELEFONE",
         "pattern": [
             {"TEXT": {"REGEX": r"\(?\d{2}\)?\s?\d{4,5}-?\d{4}"}}
         ]
     },
-    # 7. DATA (Formato Numérico e Mês por Extenso)
-    {
+    # 8. DATA (Formato com Mês por Extenso)
+     {
         "label": "DATA",
         "pattern": [
             {"TEXT": {"REGEX": r"\b\d{1,2}/\d{1,2}/\d{4}\b"}}  # Formato 16/08/2024
@@ -99,14 +107,14 @@ patterns = [
             {"TEXT": {"REGEX": r"\b\d{1,2} de [a-zç]+ de \d{4}\b"}}  # Formato 02 de setembro de 2024
         ]
     },
-    # 8. CNPJ
+    # 9. CNPJ
     {
         "label": "CNPJ",
         "pattern": [
             {"TEXT": {"REGEX": r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b"}}
         ]
     },
-    # 9. CPF
+    # 10. CPF
     {
         "label": "CPF",
         "pattern": [
@@ -118,20 +126,20 @@ patterns = [
 # Adicionar os padrões ao EntityRuler
 ruler.add_patterns(patterns)
 
-# Função para anonimizar o texto
-def anonimizar_texto(texto):
-    doc = nlp(texto)
-    texto_anonimizado = texto
-    for ent in doc.ents:
+# Função para anonimizar o texto de uma linha substituindo as entidades por seus placeholders
+def anonimizar_texto_linha(linha):
+    doc = nlp(linha)
+    texto_anonimizado = linha
+    # Ordenar as entidades por posição de início (start_char) em ordem decrescente
+    entidades = sorted(doc.ents, key=lambda ent: ent.start_char, reverse=True)
+    for ent in entidades:
         if ent.label_ in ['ORG', 'PER', 'OAB', 'EMAIL', 'TELEFONE', 'DATA', 'CNPJ', 'CPF']:
             placeholder = f'[{ent.label_}]'
-            texto_anonimizado = texto_anonimizado.replace(ent.text, placeholder)
+            # Substituir a entidade no texto
+            texto_anonimizado = texto_anonimizado[:ent.start_char] + placeholder + texto_anonimizado[ent.end_char:]
     return texto_anonimizado
 
-# Processar o texto pré-corrigido e anonimizar
-texto_pre_anonimizado = anonimizar_texto(texto_pre)
-
-# Dividir o texto em linhas
+# Processar o texto pré-corrigido e dividir em linhas
 linhas = texto_pre.split('\n')
 
 # Inicializar uma lista para armazenar os dados da tabela
@@ -161,11 +169,15 @@ for idx, linha in enumerate(linhas):
             else:
                 label_name = ent_label
             linha_dict[label_name] = ent_text
-    # Adicionar o dicionário da linha à lista (inclui linhas sem entidades)
-    if linha_dict:
-        dados_tabela.append(linha_dict)
-    else:
-        dados_tabela.append({'TEXT': linha})
+    
+    # Anonimizar o texto da linha
+    texto_anonimizado = anonimizar_texto_linha(linha)
+    
+    # Adicionar a coluna 'TEXT' com o texto anonimizado
+    linha_dict['TEXT'] = texto_anonimizado
+    
+    # Adicionar o dicionário da linha à lista
+    dados_tabela.append(linha_dict)
 
 # Definir todas as labels, garantindo que todas as colunas sejam criadas
 all_labels = ['PER', 'ORG', 'OAB', 'EMAIL', 'TELEFONE', 'DATA', 'CNPJ', 'CPF', 'TEXT']
@@ -184,3 +196,6 @@ df_entidades = pd.DataFrame(dados_tabela, columns=todas_colunas)
 # Exibir o DataFrame resultante
 print("\nTabela de Entidades Identificadas:")
 print(df_entidades)
+
+import openpyxl
+df_entidades.to_excel('ent_ident.xlsx', engine='openpyxl', index=False)
