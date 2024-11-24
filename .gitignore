@@ -1,0 +1,5 @@
+*.peticoes
+sumulas.csv
+*.csv
+__pycache__/
+*.pyc
