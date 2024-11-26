@@ -1,0 +1,4 @@
+*.env
+sumulas.csv 
+__pycache__/
+peticoes/
