@@ -1,4 +1,5 @@
 import logging
+import os
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -8,6 +9,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 import csv
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configuração básica do logging
 logging.basicConfig(
@@ -25,7 +29,7 @@ options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
 # Caminho para o chromedriver (ajuste conforme necessário)
-chrome_driver_path = "/usr/local/bin/chromedriver"  # Altere para o caminho correto do seu chromedriver
+chrome_driver_path = os.getenv("chrome_path")  # Altere para o caminho correto do seu chromedriver
 
 # Configuração do WebDriver
 service = Service(chrome_driver_path)
