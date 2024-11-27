@@ -18,63 +18,79 @@ chrome_driver_path = os.getenv("chrome_path")
 service = Service(chrome_driver_path)
 options = Options()
 
-
-
-
 service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=options)
 
-# Lê o primeiro link da tabela CSV
-with open("resultados/resultados_links.csv", "r", encoding="utf-8") as csvfile:
+links_casos_notorios = []
+links_direito_administrativo = []
+with open("resultados_links.csv", "r", encoding="utf-8") as csvfile:
     reader = csv.DictReader(csvfile)
-    primeiro_link = next(reader)["Link"]
+    for row in reader:
+        if row["Matéria"] == "Casos Notórios":
+            links_casos_notorios.append(row)
+        elif row["Matéria"] == "Direito Administrativo" and len(links_direito_administrativo) < 10:
+            links_direito_administrativo.append(row)
 
-# Realiza o scraping da página do link
+# Combinar os dois conjuntos de links
+links_filtrados = links_casos_notorios + links_direito_administrativo
+
+# Lista para armazenar os resultados
 resultados = []
 
+# Processar cada link filtrado
 try:
-    print(f"Acessando o link: {primeiro_link}")
-    driver.get(primeiro_link)
+    for link_info in links_filtrados:
+        link = link_info["Link"]
+        materia = link_info["Matéria"]
+        titulo = link_info["Título"]
 
-    # Aguarda até que o conteúdo da página esteja carregado
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "documento"))
-    )
+        print(f"Acessando o link: {link}")
+        driver.get(link)
 
-    # Analisa o conteúdo da página com BeautifulSoup
-    soup = BeautifulSoup(driver.page_source, "lxml")
+        # Aguarda até que o conteúdo da página esteja carregado
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "documento"))
+        )
 
-    # Captura todos os documentos
-    documentos = soup.find_all("div", class_="documento")
+        # Analisa o conteúdo da página com BeautifulSoup
+        soup = BeautifulSoup(driver.page_source, "lxml")
 
-    for doc in documentos:
-        documento_info = {}
+        # Captura todos os documentos
+        documentos = soup.find_all("div", class_="documento")
 
-        # Título do Documento
-        titulo = doc.find("div", class_="clsNumDocumento")
-        documento_info["Número do Documento"] = titulo.get_text(strip=True) if titulo else "Não encontrado"
+        for doc in documentos:
+            documento_info = {
+                "Matéria": materia,
+                "Título": titulo
+            }
 
-        # Identificação (Processo, Relator, etc.)
-        identificacoes = doc.find_all("div", class_="paragrafoBRS")
-        for identificacao in identificacoes:
-            subtitulo = identificacao.find("div", class_="docTitulo")
-            texto = identificacao.find("div", class_="docTexto")
-            if subtitulo and texto:
-                documento_info[subtitulo.get_text(strip=True)] = texto.get_text(strip=True)
+            # Título do Documento
+            titulo_doc = doc.find("div", class_="clsNumDocumento")
+            documento_info["Número do Documento"] = titulo_doc.get_text(strip=True) if titulo_doc else "Não encontrado"
 
-        # Conteúdo Principal do Documento (textarea ou outros elementos)
-        texto_area = doc.find("textarea", class_="textareaSemformatacao")
-        if texto_area:
-            documento_info["Conteúdo Principal"] = texto_area.get_text(strip=True)
+            # Identificação (Processo, Relator, etc.)
+            identificacoes = doc.find_all("div", class_="paragrafoBRS")
+            for identificacao in identificacoes:
+                subtitulo = identificacao.find("div", class_="docTitulo")
+                texto = identificacao.find("div", class_="docTexto")
+                if subtitulo and texto:
+                    documento_info[subtitulo.get_text(strip=True)] = texto.get_text(strip=True)
 
-        # Adiciona o documento aos resultados
-        resultados.append(documento_info)
+            # Conteúdo Principal do Documento (textarea ou outros elementos)
+            texto_area = doc.find("textarea", class_="textareaSemformatacao")
+            if texto_area:
+                documento_info["Conteúdo Principal"] = texto_area.get_text(strip=True)
+
+            # Adiciona o documento aos resultados
+            resultados.append(documento_info)
 
 finally:
     driver.quit()
 
 # Define as colunas do CSV
 colunas = [
+    "Matéria",
+    "Título",
     "Número do Documento",
     "Processo",
     "Relator",
@@ -87,7 +103,7 @@ colunas = [
 ]
 
 # Salva os resultados em um arquivo CSV
-csv_filename = "documentos_estruturados.csv"
+csv_filename = "documentos_casos_notorios_direito_administrativo.csv"
 with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=colunas)
 
