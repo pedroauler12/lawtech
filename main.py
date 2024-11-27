@@ -1,12 +1,15 @@
+import json
+import os
+import time
+import csv
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-import os
-from dotenv import load_dotenv
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-import time
+
 
 load_dotenv()
 
@@ -33,43 +36,68 @@ wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "btnAbreMateria")
 # Localizar todos os botões das matérias
 botoes_materias = driver.find_elements(By.CLASS_NAME, "btnAbreMateria")
 
-for botao in botoes_materias:
+resultados = {}
+
+# Loop para percorrer cada matéria
+for botao_materia in botoes_materias:
     try:
-        # Verificar se a matéria já está expandida
-        if botao.get_attribute("aria-expanded") == "true":
-            print(f"Matéria {botao.get_attribute('data-bs-target')} já está expandida. Pulando...")
-            continue
+        # Obter o nome da matéria
+        nome_materia = botao_materia.text.strip()
 
-        # Rolar para o botão estar visível (evita problemas de clique)
-        driver.execute_script("arguments[0].scrollIntoView(true);", botao)
-        time.sleep(1)  # Pausa breve para estabilizar o scroll
+        # Expandir a matéria, se necessário
+        if botao_materia.get_attribute("aria-expanded") != "true":
+            driver.execute_script("arguments[0].scrollIntoView(true);", botao_materia)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", botao_materia)
 
-        # Usar JavaScript para clicar no botão
-        driver.execute_script("arguments[0].click();", botao)
-        print(f"Matéria {botao.get_attribute('data-bs-target')} foi aberta.")
+        # Esperar que os títulos dentro da matéria estejam carregados
+        div_materia_id = botao_materia.get_attribute("data-bs-target").lstrip("#")
+        wait.until(EC.presence_of_element_located((By.ID, div_materia_id)))
 
-        # Pausa para permitir a abertura da matéria
-        time.sleep(2)
+        # Localizar os botões dos títulos dentro da matéria
+        div_materia = driver.find_element(By.ID, div_materia_id)
+        botoes_titulos = div_materia.find_elements(By.CLASS_NAME, "btnAbreTitulo")
+
+        # Lista para armazenar os títulos da matéria atual
+        titulos = []
+
+        # Loop para percorrer cada título dentro da matéria
+        for botao_titulo in botoes_titulos:
+            # Obter o nome do título
+            nome_titulo = botao_titulo.text.strip()
+
+            # Expandir o título, se necessário
+            if botao_titulo.get_attribute("aria-expanded") != "true":
+                driver.execute_script("arguments[0].scrollIntoView(true);", botao_titulo)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", botao_titulo)
+
+            # Adicionar o título à lista
+            titulos.append(nome_titulo)
+
+        # Adicionar a matéria e seus títulos ao dicionário de resultados
+        resultados[nome_materia] = titulos
 
     except Exception as e:
-        print(f"Erro ao processar o botão: {e}")
-
-# temos o id div de cada area do direito , sendo id="divMateria*" onde * é um numero de 1 a 13
-
-'''
-time.sleep(2)
-materia = driver.find_element(By.ID, "divMateria1")
-print(materia.text)
-
-
-
-# Capturar o elemento de interesse
-
-materia = driver.find_element(By.ID, "divTitulo10")
-
-# Obter o texto visível
-print("Texto visível no elemento:")
-print(materia.text)
-'''
-
+        print(f"Erro ao processar a matéria ou título: {e}")
+ 
+time.sleep(5)
 driver.quit()
+
+# Salvar os resultados em um arquivo JSON
+with open("resultados.json", "w", encoding="utf-8") as f:
+    json.dump(resultados, f, ensure_ascii=False, indent=4)
+
+# Exibir os resultados no console
+print(json.dumps(resultados, ensure_ascii=False, indent=4))
+
+# Exportar resultados para um arquivo CSV
+with open("resultados.csv", "w", newline="", encoding="utf-8") as csvfile:
+    writer = csv.writer(csvfile)
+    # Escrever o cabeçalho
+    writer.writerow(["Matéria", "Título"])
+    # Escrever os dados
+    for materia, titulos in resultados.items():
+        for titulo in titulos:
+            writer.writerow([materia, titulo])
+print("Resultados salvos no arquivo 'resultados.csv'.")
