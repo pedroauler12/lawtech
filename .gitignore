@@ -1,0 +1,16 @@
+
+*.peticoes
+peticoes/
+*.csv
+__pycache__/
+*.pyc
+.env 
+*.env 
+sumulas.csv 
+__pycache__/
+peticoes/
+resultados_links.csv
+resultados_links.json
+resultados.csv
+resultados.json
+
