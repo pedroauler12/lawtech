@@ -78,13 +78,21 @@ for botao_materia in botoes_materias:
                 # Adicionar os links ao resultado
                 for link in links:
                     texto_link = link.text.strip()
-                    href_link = link.get_attribute("href") or "javascript:;"
+                    form_id = link.get_attribute("onclick").split("'")[1]  # Extrair ID do formulário
+                    form = driver.find_element(By.ID, form_id)  # Localizar o formulário
+
+                    # Construir o verdadeiro link
+                    action_url = form.get_attribute("action")
+                    inputs = form.find_elements(By.TAG_NAME, "input")
+                    params = "&".join([f"{input.get_attribute('name')}={input.get_attribute('value')}" for input in inputs])
+                    verdadeiro_link = f"{action_url}?{params}"
+
                     if texto_link:
                         resultados.append({
                             "materia": nome_materia,
                             "titulo": nome_titulo,
                             "texto_link": texto_link,
-                            "link": href_link
+                            "link": verdadeiro_link
                         })
 
             except Exception as e:
