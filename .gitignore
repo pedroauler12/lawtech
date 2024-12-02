@@ -15,3 +15,4 @@ resultados.csv
 resultados.json
 
 *.json
+*.log
