@@ -32,13 +32,10 @@ options.add_argument("--disable-gpu")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-# Caminho do ChromeDriver (definido em .env)
 chrome_driver_path = os.getenv("chrome_path")
-
 service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=options)
 
-# Lista para armazenar os resultados
 resultados = []
 
 def capturar_documentos(materia, titulo):
@@ -67,78 +64,86 @@ def capturar_documentos(materia, titulo):
         # Captura da Jurisprudência Citada (se existir)
         jurisprudencia = doc.find("div", class_="campoVeja")
         if jurisprudencia:
-            jurisprudencias_completas = []
+            html_juris = jurisprudencia.decode_contents()
+            blocks = re.split(r'<br\s*/?>\s*<br\s*/?>', html_juris, flags=re.IGNORECASE)
 
-            # Extrai o texto completo para tentar encontrar o título (entre parênteses)
-            texto_completo = jurisprudencia.get_text(" ", strip=True)
-            titulo_jurisprudencia = None
-            titulo_match = re.search(r'\(([^)]+)\)', texto_completo)
-            if titulo_match:
-                # Inclui os parênteses também: 
-                # Se quiser sem parênteses, use titulo_match.group(1)
-                titulo_jurisprudencia = f"({titulo_match.group(1)})"
+            titulos_juris = []
+            processos_juris = []
 
-            # Encontra todos os links (processos citados)
-            links = jurisprudencia.find_all("a")
-            for link in links:
-                processo = link.get_text(strip=True)
-                # Tenta obter o texto subsequente ao link (irmão de texto)
-                texto_apos_link = link.next_sibling
-                uf = ""
-                if texto_apos_link and isinstance(texto_apos_link, str):
-                    texto_apos_link = texto_apos_link.strip()
-                    # Procura UF no final do texto (ex: -SP, -RS)
-                    uf_match = re.search(r'\-(\w{2})$', texto_apos_link)
-                    if uf_match:
-                        uf = uf_match.group(1)
+            for block in blocks:
+                block = block.strip()
+                if not block:
+                    continue
 
-                jurisprudencias_completas.append({
-                    "Título da Jurisprudência": titulo_jurisprudencia if titulo_jurisprudencia else "",
-                    "Tribunal": "STJ",
-                    "Processo Citado": processo,
-                    "Localização": uf
-                })
+                block_soup = BeautifulSoup(block, "lxml")
+                block_text = block_soup.get_text(separator="\n", strip=True)
+                lines = block_text.split("\n")
 
-            if jurisprudencias_completas:
-                linhas_juris = []
-                for j in jurisprudencias_completas:
-                    linha_formatada = f"{j['Título da Jurisprudência']}\n{j['Tribunal']} - {j['Processo Citado']} - {j['Localização']}"
-                    linhas_juris.append(linha_formatada)
-                documento_info["Jurisprudência Citada"] = "\n\n".join(linhas_juris)
-            else:
-                documento_info["Jurisprudência Citada"] = "Jurisprudência citada não encontrada ou vazia"
+                # Extrai o título da jurisprudência
+                titulo_jurisprudencia = ""
+                for l in lines:
+                    if l.startswith("(") and ")" in l:
+                        title_match = re.search(r"\(([^)]*)\)", l)
+                        if title_match:
+                            titulo_jurisprudencia = f"({title_match.group(1)})"
+                        break
+
+                # Encontra todos os links (processos)
+                links = block_soup.find_all("a")
+                block_processes = []
+                for link in links:
+                    processo = link.get_text(strip=True)
+                    texto_apos_link = link.next_sibling
+                    uf = ""
+                    if texto_apos_link and isinstance(texto_apos_link, str):
+                        texto_apos_link = texto_apos_link.strip()
+                        texto_apos_link = texto_apos_link.rstrip(",")
+                        uf_match = re.search(r'\-(\w{2})$', texto_apos_link)
+                        if uf_match:
+                            uf = uf_match.group(1)
+
+                    if uf:
+                        block_processes.append(f"{processo} - {uf}")
+                    else:
+                        block_processes.append(processo)
+
+                titulos_juris.append(titulo_jurisprudencia if titulo_jurisprudencia else "")
+                processos_juris.append(", ".join(block_processes) if block_processes else "")
+
+            documento_info["Jurisprudência Título(s)"] = "\n\n".join(titulos_juris)
+            documento_info["Jurisprudência Processo(s)"] = "\n\n".join(processos_juris)
+
         else:
-            documento_info["Jurisprudência Citada"] = "Jurisprudência não citada"
+            documento_info["Jurisprudência Título(s)"] = "Jurisprudência não citada"
+            documento_info["Jurisprudência Processo(s)"] = "Jurisprudência não citada"
 
-        # Adiciona o documento aos resultados
         resultados.append(documento_info)
 
-# Aqui vamos ler apenas o primeiro link da primeira matéria (para testes)
-primeiro_link = None
+# Identificar o primeiro link de cada matéria
+materias_processadas = set()
+primeiros_links = []
+
 with open("resultados_links.csv", "r", encoding="utf-8") as csvfile:
     reader = csv.DictReader(csvfile)
-    materias_processadas = set()
     for row in reader:
         materia = row["Matéria"]
         if materia not in materias_processadas:
             materias_processadas.add(materia)
-            primeiro_link = row
-            break
+            primeiros_links.append(row)
 
-if primeiro_link:
-    try:
-        link = primeiro_link["Link"]
-        materia = primeiro_link["Matéria"]
-        titulo = primeiro_link["Título"]
+# Processar o primeiro link de cada matéria
+try:
+    for link_info in primeiros_links:
+        link = link_info["Link"]
+        materia = link_info["Matéria"]
+        titulo = link_info["Título"]
 
-        logging.info(f"Processando link único: {link} | Matéria: {materia} | Título: {titulo}")
+        logging.info(f"Processando link: {link} | Matéria: {materia} | Título: {titulo}")
         driver.get(link)
 
         while True:
-            # Captura os documentos da página atual
             capturar_documentos(materia, titulo)
 
-            # Verifica se existe o botão de próxima página
             try:
                 proxima_pagina = driver.find_element(By.CLASS_NAME, "iconeProximaPagina")
                 if "inativo" in proxima_pagina.get_attribute("class"):
@@ -153,43 +158,39 @@ if primeiro_link:
             except Exception as e:
                 logging.error(f"Erro ao navegar para a próxima página: {e}")
                 break
-    finally:
-        driver.quit()
 
-    # Define as colunas do CSV e XLSX
-    colunas = [
-        "Matéria",
-        "Título",
-        "Número do Documento",
-        "Processo",
-        "Relator",
-        "Órgão Julgador",
-        "Data do Julgamento",
-        "Data da Publicação/Fonte",
-        "Ementa",
-        "Acórdão",
-        "Jurisprudência Citada",
-    ]
-
-    # Salva os resultados em um arquivo CSV
-    csv_filename = "juris_teste.csv"
-    with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=colunas)
-        writer.writeheader()
-        for documento in resultados:
-            linha = {coluna: documento.get(coluna, "") for coluna in colunas}
-            writer.writerow(linha)
-
-    logging.info(f"Resultados salvos no arquivo '{csv_filename}'.")
-
-    # Salva os resultados em um arquivo XLSX
-    xlsx_filename = "juris_teste.xlsx"
-    df = pd.DataFrame(resultados, columns=colunas)
-    df.to_excel(xlsx_filename, index=False)
-
-    logging.info(f"Resultados salvos no arquivo '{xlsx_filename}'.")
-    print(f"Resultados salvos nos arquivos:\n- '{csv_filename}'\n- '{xlsx_filename}'")
-
-else:
-    logging.error("Nenhum link encontrado no arquivo resultados_links.csv")
+finally:
     driver.quit()
+
+# Define as colunas do CSV e XLSX
+colunas = [
+    "Matéria",
+    "Título",
+    "Número do Documento",
+    "Processo",
+    "Relator",
+    "Órgão Julgador",
+    "Data do Julgamento",
+    "Data da Publicação/Fonte",
+    "Ementa",
+    "Acórdão",
+    "Jurisprudência Título(s)",
+    "Jurisprudência Processo(s)"
+]
+
+csv_filename = "juris_primeiro_link_por_materia.csv"
+with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=colunas)
+    writer.writeheader()
+    for documento in resultados:
+        linha = {coluna: documento.get(coluna, "") for coluna in colunas}
+        writer.writerow(linha)
+
+logging.info(f"Resultados salvos no arquivo '{csv_filename}'.")
+
+xlsx_filename = "juris_primeiro_link_por_materia.xlsx"
+df = pd.DataFrame(resultados, columns=colunas)
+df.to_excel(xlsx_filename, index=False)
+
+logging.info(f"Resultados salvos no arquivo '{xlsx_filename}'.")
+print(f"Resultados salvos nos arquivos:\n- '{csv_filename}'\n- '{xlsx_filename}'")
