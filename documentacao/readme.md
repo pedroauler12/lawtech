@@ -1,121 +1,114 @@
+# Web Scraping Jurídico - Projeto de Extração de Dados
 
+## Introdução
 
+Este projeto foi desenvolvido com o objetivo de realizar o **web scraping de dados jurídicos** de um portal dinâmico. Nosso foco é coletar informações organizadas sobre **matérias jurídicas**, seus respectivos **títulos**, e os **documentos detalhados** relacionados a cada título. 
 
-### Passo 1: Definir Objetivos e Escopo do Projeto (Atualizado)
-- **Objetivo Principal:**
-  - **Correção:** Treinar um modelo de IA capaz de corrigir petições escritas pelo Advogado B, adaptando-as aos padrões do Advogado A.
-  - **Geração:** Desenvolver uma IA que possa gerar novas petições do zero, seguindo o estilo do Advogado B e as correções típicas do Advogado A.
-- **Escopo:**
-  - **Correção de Petições Existentes:** Foco na correção de estilo, linguagem jurídica, estrutura e erros gramaticais.
-  - **Geração de Novas Petições:** Capacidade de criar petições completas baseadas em parâmetros fornecidos (por exemplo, tipo de ação, partes envolvidas, etc.).
+O resultado final é consolidado em arquivos CSV e XLSX para análise posterior. A coleta inclui detalhes como processos, ementas, acórdãos e jurisprudências citadas. A estrutura foi dividida em duas grandes etapas para facilitar o desenvolvimento e a organização.
 
-### Passo 2: Coleta e Preparação dos Dados (Ampliado)
-- **Reunir Dados para Correção:**
-  - Pares de petições: petição original do Advogado B e a versão corrigida pelo Advogado A.
-- **Reunir Dados para Geração:**
-  - **Corpus de Petições:** Coletar um conjunto amplo de petições escritas pelo Advogado B que não foram corrigidas, para capturar seu estilo de escrita.
-  - **Anotações Adicionais:** Se possível, incluir metadados como tipo de caso, área do direito, partes envolvidas, para auxiliar na geração contextualizada.
+---
 
-### Passo 3: Pré-processamento dos Dados (Ampliado)
-#### 3.1. Extração de Texto dos Arquivos `.docx`
-- **Por que usamos `python-docx`**:
-  - **Preservação da Estrutura**: Os arquivos das petições estão em formato `.docx`, que mantém a formatação e a estrutura original dos documentos jurídicos.
-  - **Automatização**: A biblioteca `python-docx` permite extrair o texto de múltiplos documentos de forma programática, facilitando o processamento em lote.
-  - **Facilidade de Uso**: Com `python-docx`, podemos acessar e manipular o conteúdo dos arquivos `.docx` diretamente no Python, sem a necessidade de conversão para outros formatos.
+## Parte 1: Extração de Links e Criação da Tabela Inicial
 
-- **Ferramenta Utilizada**:
-  - **`python-docx`**: Biblioteca Python para ler, escrever e manipular documentos do Word (`.docx`).
+### Objetivo
 
-- **Instalação da Biblioteca**:
+Na primeira etapa, buscamos identificar e extrair os **links principais** que correspondem a diferentes **matérias jurídicas** e seus **títulos** associados. Esses links servem como entrada para a próxima fase do projeto, onde realizamos a coleta detalhada dos documentos.
 
-  ```bash
-  pip install python-docx
+### Estratégia
 
+1. **Navegação Dinâmica**:
+   - Utilizamos o Selenium para interagir com a página dinâmica e capturar os links relevantes.
+   - Cada matéria contém títulos associados, e os links são extraídos sistematicamente.
 
-## 3.2. Anonimização dos Dados com spaCy
+2. **Estrutura da Página**:
+   - Os botões de interação e as classes HTML foram inspecionados para identificar os elementos correspondentes.
+   - Botões com classes como `btnAbreMateria` e `btnAbreTitulo` foram utilizados para navegar e expandir os elementos na página.
 
-Para proteger informações sensíveis presentes nas petições, utilizamos o spaCy para anonimizar dados pessoais e confidenciais. A anonimização foi realizada através do reconhecimento de entidades nomeadas (NER), substituindo-as por placeholders correspondentes.
+3. **Resultados**:
+   - Os links extraídos foram organizados em um arquivo CSV chamado `resultados_links.csv`, contendo colunas para a **matéria**, o **título** e o **link**.
 
-### Função de Anonimização
+### Trecho Relevante do Código
 
 ```python
-def anonimizar_texto(texto):
-    doc = nlp(texto)
-    new_text = texto
-    for ent in reversed(doc.ents):
-        if ent.label_ in ['PER', 'ORG', 'LOC', 'DATE', 'MONEY', 'MISC']:
-            start_char = ent.start_char
-            end_char = ent.end_char
-            new_text = new_text[:start_char] + f'[{ent.label_}]' + new_text[end_char:]
-    return new_text
+# Encontrar todos os botões que abrem as matérias
+botoes_materias = driver.find_elements(By.CLASS_NAME, "btnAbreMateria")
+
+# Loop para clicar em cada botão de matéria
+for botao in botoes_materias:
+    botao.click()
+    time.sleep(2)  # Aguarda para garantir que o conteúdo seja carregado
+
+    # Após abrir uma matéria, localizar os títulos
+    botoes_titulos = driver.find_elements(By.CLASS_NAME, "btnAbreTitulo")
+    for botao_titulo in botoes_titulos:
+        titulo = botao_titulo.text.strip()
+        link = botao_titulo.get_attribute("data-bs-target")
+        resultados.append({"Matéria": materia, "Título": titulo, "Link": link})
 ```
 
-### Resumo do Processo
+## Parte 2: Extração de Documentos Relacionados a Cada Link
 
-- **Objetivo**: Remover informações sensíveis das petições para proteger a privacidade e cumprir com regulamentos legais.
-- **Metodologia**:
-  - Utilizamos o spaCy para identificar entidades nomeadas no texto.
-  - Substituímos as entidades identificadas por placeholders genéricos.
-  
-- **Labels Utilizadas**:
-  - **PER**: Pessoa (nomes de indivíduos)
-  - **ORG**: Organização (empresas, instituições)
-  - **LOC**: Localização (cidades, estados, países)
-  - **DATE**: Data (datas específicas)
-  - **MONEY**: Dinheiro (valores monetários)
-  - **MISC**: Miscelânea (outras entidades relevantes)
+### Objetivo
 
+Na segunda etapa, extraímos as informações detalhadas de cada **título** e seus respectivos **documentos**. Isso inclui dados como:
 
-- **Tokenização e Normalização:**
-  - Preparar os textos para serem processados pelo modelo.
-- **Preparação dos Dados para Geração:**
-  - Criar um formato que permita ao modelo entender a estrutura das petições e os elementos essenciais que devem ser incluídos.
+- **Processo**
+- **Relator**
+- **Órgão julgador**
+- **Data do julgamento**
+- **Ementa**
+- **Acórdão**
+- **Jurisprudências citadas**
 
-### Passo 4: Divisão dos Dados 
-- **Conjunto de Treinamento:**
-  - Para correção: pares de petições antes e depois da correção.
-  - Para geração: petições originais do Advogado B com possíveis metadados.
-- **Conjuntos de Validação e Teste:**
-  - Separar dados para avaliar tanto a capacidade de correção quanto de geração.
+### Estratégia
 
-### Passo 5: Configuração do Ambiente de Desenvolvimento (Inalterado)
-- **Linguagem de Programação e Bibliotecas:** Python, Transformers, PyTorch/TensorFlow, etc.
-- **Hardware:** Utilizar GPUs para acelerar o treinamento.
+#### Navegação por Links:
 
-### Passo 6: Fine-tuning e Treinamento do Modelo (Ampliado)
-- **Modelo para Correção:**
-  - Seqüência para Seqüência (Seq2Seq): Adaptar o BERTimbau para tarefas de transformação de texto.
-- **Modelo para Geração:**
-  - Modelos de Linguagem Generativa:  utilizar o BERTimbau de forma generativa.
-- **Treinamento:**
-  - **Correção:** Treinar o modelo para mapear petições do Advogado B para as versões corrigidas pelo Advogado A.
-  - **Geração:** Treinar o modelo para gerar petições a partir de um prompt ou conjunto de parâmetros.
+- Para cada link identificado na etapa anterior, abrimos a página e coletamos os documentos listados.
+- Caso existam múltiplas páginas de documentos, utilizamos a navegação com os botões da página para garantir que todos os documentos sejam coletados.
 
-### Passo 7: Avaliação dos Modelos (Ampliado)
-- **Métricas de Avaliação para Correção:**
-  - BLEU Score, ROUGE Score, e análise qualitativa.
-- **Métricas de Avaliação para Geração:**
-  - **Perplexidade:** Medir a fluência do texto gerado.
-  - **Adequação e Coerência:** Verificar se a petição atende aos requisitos legais e estruturais.
-- **Feedback de Especialistas:**
-  - Solicitar ao Advogado A uma avaliação das petições geradas.
+#### Coleta de Dados:
 
-### Passo 8: Iteração e Melhorias (Ampliado)
-- **Análise de Erros:**
-  - Identificar padrões nos erros de correção e geração.
-- **Aprimoramento dos Dados:**
-  - Adicionar mais exemplos e ajustar os dados de entrada.
-- **Ajustes no Modelo:**
-  - Experimentar diferentes arquiteturas ou modelos pré-treinados mais adequados para geração de texto, como o GPT.
+- Usamos o **BeautifulSoup** para extrair os dados estruturados dentro de cada documento.
+- Identificamos elementos como `clsNumDocumento` para os números dos documentos e `paragrafoBRS` para os detalhes associados.
 
-### Passo 9: Implementação e Testes Finais (Ampliado)
-- **Desenvolvimento de Interface:**
-  - Criar uma interface que permita:
-    - **Correção:** Inserir uma petição e receber a versão corrigida.
-    - **Geração:** Fornecer parâmetros (tipo de ação, partes, etc.) e receber uma petição gerada.
-- **Testes:**
-  - Realizar testes com casos reais e cenários hipotéticos.
+### Resultados:
 
+Os resultados foram salvos em arquivos CSV e XLSX, como:
 
+- **documentos_primeiro_link_por_materia.csv**
+- **documentos_primeiro_link_por_materia.xlsx**
 
+### Trecho Relevante do Código
 
+#### Navegação entre Páginas
+
+```python
+while True:
+    # Capturar os documentos da página atual
+    capturar_documentos(materia, titulo)
+
+    # Verificar se existe o botão de próxima página
+    try:
+        proxima_pagina = driver.find_element(By.CLASS_NAME, "iconeProximaPagina")
+        if "inativo" in proxima_pagina.get_attribute("class"):
+            logging.info("Nenhuma próxima página disponível. Concluído.")
+            break
+        else:
+            proxima_pagina.click()  # Avança para a próxima página
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "documento"))
+            )
+    except Exception as e:
+        logging.error(f"Erro ao navegar para a próxima página: {e}")
+        break
+``` 
+## Conclusão
+
+Este projeto demonstrou como o uso combinado de ferramentas como **Selenium**, **BeautifulSoup** e **pandas** pode facilitar a coleta de informações estruturadas de páginas dinâmicas.
+
+Os dados coletados foram organizados em arquivos CSV e XLSX e estão prontos para análise, permitindo:
+
+- **Estudos acadêmicos**
+- **Automação de tarefas jurídicas**
+- **Desenvolvimento de sistemas para indexação e pesquisa**
