@@ -161,7 +161,8 @@ try:
 
     total_links = len(todos_links)
 
-    for i, link_info in enumerate(todos_links):
+    start_index = 683  # Se quiser retomar de onde parou, altere este valor
+    for i, link_info in enumerate(todos_links[start_index:], start=start_index):
         link = link_info["Link"]
         materia = link_info["Matéria"]
         titulo = link_info["Título"]
